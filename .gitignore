@@ -1,0 +1,22 @@
+# Virtual Environment
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Dataset
+dataset/
+
+# Outputs
+outputs/
+
+# VS Code
+.vscode/
+
+# Checkpoints
+*.pth
+*.pt
+
+# Logs
+*.log

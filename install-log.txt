@@ -1,0 +1,1 @@
+﻿Using pip 26.1.2 from C:\Users\DELL\OneDrive\Desktop\defectra\.venv\Lib\site-packages\pip (python 3.13)
