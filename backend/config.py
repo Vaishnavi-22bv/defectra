@@ -5,6 +5,10 @@
 import os
 import torch
 
+# ==========================================================
+# Project Paths
+# ==========================================================
+
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
 
@@ -52,6 +56,36 @@ else:
         "carinthia-s.csv"
     )
 
+    SPLIT_DIR = os.path.join(
+        DATASET_DIR,
+        "split"
+    )
+
+# ==========================================================
+# Dataset Directories
+# ==========================================================
+
+TRAIN_IMAGES_DIR = os.path.join(SPLIT_DIR, "train", "images")
+TRAIN_MASKS_DIR = os.path.join(SPLIT_DIR, "train", "masks")
+
+VAL_IMAGES_DIR = os.path.join(SPLIT_DIR, "val", "images")
+VAL_MASKS_DIR = os.path.join(SPLIT_DIR, "val", "masks")
+
+TEST_IMAGES_DIR = os.path.join(SPLIT_DIR, "test", "images")
+TEST_MASKS_DIR = os.path.join(SPLIT_DIR, "test", "masks")
+
+# ==========================================================
+# Output Directories
+# ==========================================================
+
+SAVE_MODEL_DIR = os.path.join(PROJECT_ROOT, "saved_models")
+LOG_DIR = os.path.join(PROJECT_ROOT, "logs")
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, "outputs")
+
+os.makedirs(SAVE_MODEL_DIR, exist_ok=True)
+os.makedirs(LOG_DIR, exist_ok=True)
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
 # ==========================================================
 # Dataset folders
 # ==========================================================
@@ -94,12 +128,18 @@ TEST_MASKS_DIR = os.path.join(
 if __name__ == "__main__":
 
     print("=" * 60)
+    print("DEFECTRA CONFIGURATION")
+    print("=" * 60)
 
     print("PROJECT_ROOT :", PROJECT_ROOT)
     print("DATASET_DIR  :", DATASET_DIR)
     print("CSV_PATH     :", CSV_PATH)
 
+    print()
+
     print("CSV EXISTS   :", os.path.exists(CSV_PATH))
+
+    print()
 
     print("TRAIN IMG    :", os.path.exists(TRAIN_IMAGES_DIR))
     print("TRAIN MASK   :", os.path.exists(TRAIN_MASKS_DIR))
