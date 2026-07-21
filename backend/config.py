@@ -1,12 +1,8 @@
 """
-==========================================================
-DEFECTRA CONFIGURATION
-==========================================================
-Project  : Defectra
-Framework: PyTorch
-Model    : U-Net++ + EfficientNet-B2
-Dataset  : Carinthia Semiconductor Dataset
-==========================================================
+DEFECTRA Configuration File
+Compatible with:
+- VS Code (Windows)
+- Kaggle Notebook
 """
 
 import os
@@ -20,7 +16,7 @@ BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
 
 # ==========================================================
-# Kaggle Environment
+# Dataset Paths
 # ==========================================================
 
 if os.path.exists("/kaggle/input"):
@@ -37,10 +33,6 @@ if os.path.exists("/kaggle/input"):
         "split_kaggle"
     )
 
-# ==========================================================
-# Local Windows Environment
-# ==========================================================
-
 else:
 
     DATASET_DIR = os.path.join(
@@ -53,14 +45,14 @@ else:
         "raw"
     )
 
-    CSV_PATH = os.path.join(
-        RAW_DIR,
-        "carinthia-s.csv"
-    )
-
     SPLIT_DIR = os.path.join(
         DATASET_DIR,
         "split"
+    )
+
+    CSV_PATH = os.path.join(
+        RAW_DIR,
+        "carinthia-s.csv"
     )
 
 # ==========================================================
@@ -99,62 +91,55 @@ DEVICE = torch.device(
 PIN_MEMORY = DEVICE.type == "cuda"
 
 # ==========================================================
-# Image Settings
+# Image Parameters
 # ==========================================================
 
 IMAGE_SIZE = 512
 
-MEAN = (
-    0.485,
-    0.456,
-    0.406,
-)
-
-STD = (
-    0.229,
-    0.224,
-    0.225,
-)
+MEAN = (0.485, 0.456, 0.406)
+STD = (0.229, 0.224, 0.225)
 
 # ==========================================================
-# Dataset Settings
+# Dataset Parameters
 # ==========================================================
 
 NUM_CLASSES = 6
-
-NUM_SEG_CLASSES = 2
+NUM_SEG_CLASSES = 1
 
 # ==========================================================
-# DataLoader
+# Model Architecture
+# ==========================================================
+
+ENCODER_NAME = "efficientnet-b2"
+ENCODER_WEIGHTS = "imagenet"
+IN_CHANNELS = 3
+
+# ==========================================================
+# Training Parameters
 # ==========================================================
 
 BATCH_SIZE = 8
+NUM_EPOCHS = 50
+
+LEARNING_RATE = 1e-4
+WEIGHT_DECAY = 1e-5
 
 NUM_WORKERS = 2
 
 SHUFFLE_TRAIN = True
 
-USE_AUGMENTATION = True
-
-# ==========================================================
-# Training
-# ==========================================================
-
-NUM_EPOCHS = 50
-
-LEARNING_RATE = 1e-4
-
-WEIGHT_DECAY = 1e-5
+SEG_LOSS_WEIGHT = 1.0
+CLS_LOSS_WEIGHT = 1.0
 
 EARLY_STOPPING_PATIENCE = 10
 
-SEG_LOSS_WEIGHT = 1.0
-
-CLS_LOSS_WEIGHT = 1.0
+SEED = 42
 
 # ==========================================================
-# Training Augmentations
+# Data Augmentation
 # ==========================================================
+
+USE_AUGMENTATION = True
 
 TRAIN_AUG = {
 
@@ -164,15 +149,44 @@ TRAIN_AUG = {
 
     "random_rotate90_prob": 0.5,
 
-    "rotate_limit": 15,
+    "blur_limit": 3,
 
-    "blur_limit": 5,
+    "rotate_limit": 15
 
 }
 
 VAL_AUG = {}
 
 TEST_AUG = {}
+
+# ==========================================================
+# Model Save Paths
+# ==========================================================
+
+BEST_MODEL_PATH = os.path.join(
+    SAVE_MODEL_DIR,
+    "best_model.pth"
+)
+
+LAST_MODEL_PATH = os.path.join(
+    SAVE_MODEL_DIR,
+    "last_model.pth"
+)
+
+CHECKPOINT_PATH = os.path.join(
+    SAVE_MODEL_DIR,
+    "checkpoint.pth"
+)
+
+TRAIN_LOG_PATH = os.path.join(
+    LOG_DIR,
+    "train_log.csv"
+)
+
+VAL_LOG_PATH = os.path.join(
+    LOG_DIR,
+    "val_log.csv"
+)
 
 # ==========================================================
 # Debug
@@ -206,13 +220,9 @@ if __name__ == "__main__":
     print()
 
     print("DEVICE       :", DEVICE)
-    print("PIN_MEMORY   :", PIN_MEMORY)
-
-    print()
-
     print("IMAGE_SIZE   :", IMAGE_SIZE)
     print("BATCH_SIZE   :", BATCH_SIZE)
+    print("NUM_EPOCHS   :", NUM_EPOCHS)
     print("NUM_CLASSES  :", NUM_CLASSES)
-    print("EPOCHS       :", NUM_EPOCHS)
 
     print("=" * 60)
