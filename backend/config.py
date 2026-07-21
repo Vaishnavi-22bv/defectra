@@ -14,24 +14,75 @@ import torch
 
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
+IS_KAGGLE = os.path.exists("/kaggle/input")
+
+
+def _find_file(root_dir, filename):
+    for current_dir, _, files in os.walk(root_dir):
+        if filename in files:
+            return os.path.join(current_dir, filename)
+    return None
+
+
+def _is_split_dir(path):
+    required_dirs = [
+        os.path.join(path, "train", "images"),
+        os.path.join(path, "train", "masks"),
+        os.path.join(path, "val", "images"),
+        os.path.join(path, "val", "masks"),
+        os.path.join(path, "test", "images"),
+        os.path.join(path, "test", "masks"),
+    ]
+    return all(os.path.isdir(required_dir) for required_dir in required_dirs)
+
+
+def _find_split_dir(root_dir):
+    preferred_names = ("split_kaggle", "split")
+
+    for current_dir, dirs, _ in os.walk(root_dir):
+        for dirname in preferred_names:
+            candidate = os.path.join(current_dir, dirname)
+            if dirname in dirs and _is_split_dir(candidate):
+                return candidate
+
+    for current_dir, _, _ in os.walk(root_dir):
+        if _is_split_dir(current_dir):
+            return current_dir
+
+    return None
 
 # ==========================================================
 # Dataset Paths
 # ==========================================================
 
-if os.path.exists("/kaggle/input"):
+if IS_KAGGLE:
 
-    DATASET_DIR = "/kaggle/input/datasets/nanivaishu/defectra-dataset"
+    CSV_PATH = os.environ.get("DEFECTRA_CSV_PATH")
+    SPLIT_DIR = os.environ.get("DEFECTRA_SPLIT_DIR")
 
-    CSV_PATH = os.path.join(
-        DATASET_DIR,
-        "carinthia-s.csv"
-    )
+    if not CSV_PATH:
+        CSV_PATH = _find_file("/kaggle/input", "carinthia-s.csv")
 
-    SPLIT_DIR = os.path.join(
-        DATASET_DIR,
-        "split_kaggle"
-    )
+    if not CSV_PATH:
+        raise FileNotFoundError(
+            "Could not find carinthia-s.csv under /kaggle/input. "
+            "Attach the dataset to the Kaggle notebook or set "
+            "DEFECTRA_CSV_PATH."
+        )
+
+    RAW_DIR = os.path.dirname(CSV_PATH)
+    DATASET_DIR = os.path.dirname(RAW_DIR)
+
+    if not SPLIT_DIR:
+        SPLIT_DIR = _find_split_dir("/kaggle/input")
+
+    if not SPLIT_DIR:
+        raise FileNotFoundError(
+            "Could not find a split dataset folder under /kaggle/input. "
+            "Expected train/val/test folders with images and masks. "
+            "Attach split.zip/split_kaggle.zip as a Kaggle dataset or set "
+            "DEFECTRA_SPLIT_DIR."
+        )
 
 else:
 
@@ -111,7 +162,11 @@ NUM_SEG_CLASSES = 1
 # ==========================================================
 
 ENCODER_NAME = "efficientnet-b2"
-ENCODER_WEIGHTS = "imagenet"
+USE_PRETRAINED_ENCODER = os.environ.get(
+    "USE_PRETRAINED_ENCODER",
+    "0" if IS_KAGGLE else "1",
+) == "1"
+ENCODER_WEIGHTS = "imagenet" if USE_PRETRAINED_ENCODER else None
 IN_CHANNELS = 3
 
 # ==========================================================

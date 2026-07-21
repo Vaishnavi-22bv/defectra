@@ -31,6 +31,8 @@ from PIL import Image
 import torch
 from torch.utils.data import Dataset, DataLoader
 
+os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
+
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 

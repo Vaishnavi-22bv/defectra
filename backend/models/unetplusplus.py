@@ -1,84 +1,83 @@
 """
 =========================================================
-DEFECTRA MULTI-TASK U-NET++
+DEFECTRA - Multi-Task U-Net++
 Semantic Segmentation + Defect Classification
-Compatible with segmentation_models_pytorch 0.5.0
+
+Encoder  : EfficientNet-B2
+Framework: segmentation_models_pytorch 0.5.0
 =========================================================
 """
 
-import os
 import sys
 import warnings
+from pathlib import Path
 
 import torch
 import torch.nn as nn
-import segmentation_models_pytorch as smp
 
-# ---------------------------------------------------------
-# Add backend directory
-# ---------------------------------------------------------
+# The filters are local to the dependency import.  They silence known
+# third-party import-time warnings without hiding warnings from this project.
+with warnings.catch_warnings():
+    warnings.filterwarnings(
+        "ignore",
+        category=UserWarning,
+        module=r"segmentation_models_pytorch(?:\..*)?",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        category=UserWarning,
+        module=r"timm(?:\..*)?",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"`torch\.jit\.interface` is deprecated\..*",
+        category=DeprecationWarning,
+    )
+    import segmentation_models_pytorch as smp
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# ==========================================================
+# Resolve backend directory
+# ==========================================================
 
-if BASE_DIR not in sys.path:
-    sys.path.append(BASE_DIR)
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
+# ==========================================================
+# Read configuration
+# ==========================================================
 
 from config import (
+    DEVICE,
     ENCODER_NAME,
     ENCODER_WEIGHTS,
     IN_CHANNELS,
     NUM_CLASSES,
-    DEVICE,
 )
 
-# ---------------------------------------------------------
-# Ignore harmless warnings
-# ---------------------------------------------------------
+# ==========================================================
+# Model
+# ==========================================================
 
-warnings.filterwarnings(
-    "ignore",
-    category=UserWarning,
-    module=r"segmentation_models_pytorch.*"
-)
-
-warnings.filterwarnings(
-    "ignore",
-    category=UserWarning,
-    module=r"timm.*"
-)
-
-warnings.filterwarnings(
-    "ignore",
-    category=FutureWarning
-)
-
-warnings.filterwarnings(
-    "ignore",
-    category=DeprecationWarning
-)
-
-
-# =========================================================
-# DEFECTRA MODEL
-# =========================================================
 
 class DefectraUNetPlusPlus(nn.Module):
-
     """
     Multi-task U-Net++
 
-    Task 1:
-        Binary Semantic Segmentation
+    Outputs
+    -------
+    segmentation_output:
+        (B,1,H,W)
 
-    Task 2:
-        Six-Class Classification
+    classification_output:
+        (B,6)
     """
 
     def __init__(self):
-
         super().__init__()
 
-        self.model = smp.UnetPlusPlus(
+        self.network = smp.UnetPlusPlus(
 
             encoder_name=ENCODER_NAME,
 
@@ -90,33 +89,31 @@ class DefectraUNetPlusPlus(nn.Module):
 
             activation=None,
 
-            aux_params=dict(
+            aux_params={
 
-                pooling="avg",
+                "pooling": "avg",
 
-                dropout=0.30,
+                "dropout": 0.30,
 
-                classes=NUM_CLASSES,
+                "classes": NUM_CLASSES,
 
-                activation=None,
-
-            ),
-
+                "activation": None,
+            },
         )
 
-    def forward(self, x):
-
-        segmentation_output, classification_output = self.model(x)
+    def forward(
+        self, x: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        segmentation_output, classification_output = self.network(x)
 
         return segmentation_output, classification_output
 
 
-# =========================================================
-# TEST
-# =========================================================
+# ==========================================================
+# Test
+# ==========================================================
 
 if __name__ == "__main__":
-
     print("=" * 60)
     print("DEFECTRA MULTI-TASK U-NET++")
     print("=" * 60)
@@ -128,51 +125,31 @@ if __name__ == "__main__":
     dummy = torch.randn(
         2,
         IN_CHANNELS,
-        256,
-        256,
-        device=DEVICE
+        512,
+        512,
+        device=DEVICE,
     )
 
     with torch.no_grad():
+        segmentation_output, classification_output = model(dummy)
 
-        seg_output, cls_output = model(dummy)
+    print(f"Input Shape                 : {tuple(dummy.shape)}")
+    print(f"Segmentation Output Shape   : {tuple(segmentation_output.shape)}")
+    print(f"Classification Output Shape : {tuple(classification_output.shape)}")
 
-    print()
-
-    print("Input Shape                 :", dummy.shape)
-
-    print("Segmentation Output Shape   :", seg_output.shape)
-
-    print("Classification Output Shape :", cls_output.shape)
-
-    print()
-
-    total_params = sum(
-
-        p.numel()
-
-        for p in model.parameters()
-
-    )
+    total_params = sum(p.numel() for p in model.parameters())
 
     trainable_params = sum(
-
         p.numel()
-
         for p in model.parameters()
-
         if p.requires_grad
-
     )
 
-    print("Total Parameters     :", f"{total_params:,}")
+    print(f"Total Parameters     : {total_params:,}")
+    print(f"Trainable Parameters : {trainable_params:,}")
 
-    print("Trainable Parameters :", f"{trainable_params:,}")
+    print(f"Device               : {DEVICE}")
 
-    print()
-
-    print("Device :", DEVICE)
-
-    print("Model Created Successfully!")
-
+    print("=" * 60)
+    print("Model Loaded Successfully!")
     print("=" * 60)
