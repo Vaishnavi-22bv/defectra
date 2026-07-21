@@ -1,6 +1,13 @@
-# ---------------------------------------------------------------------
-# Project paths
-# ---------------------------------------------------------------------
+"""
+==========================================================
+DEFECTRA CONFIGURATION
+==========================================================
+Project  : Defectra
+Framework: PyTorch
+Model    : U-Net++ + EfficientNet-B2
+Dataset  : Carinthia Semiconductor Dataset
+==========================================================
+"""
 
 import os
 import torch
@@ -46,11 +53,6 @@ else:
         "raw"
     )
 
-    SPLIT_DIR = os.path.join(
-        DATASET_DIR,
-        "split"
-    )
-
     CSV_PATH = os.path.join(
         RAW_DIR,
         "carinthia-s.csv"
@@ -87,44 +89,95 @@ os.makedirs(LOG_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # ==========================================================
-# Dataset folders
+# Device
 # ==========================================================
 
-TRAIN_IMAGES_DIR = os.path.join(
-    SPLIT_DIR,
-    "train",
-    "images"
+DEVICE = torch.device(
+    "cuda" if torch.cuda.is_available() else "cpu"
 )
 
-TRAIN_MASKS_DIR = os.path.join(
-    SPLIT_DIR,
-    "train",
-    "masks"
+PIN_MEMORY = DEVICE.type == "cuda"
+
+# ==========================================================
+# Image Settings
+# ==========================================================
+
+IMAGE_SIZE = 512
+
+MEAN = (
+    0.485,
+    0.456,
+    0.406,
 )
 
-VAL_IMAGES_DIR = os.path.join(
-    SPLIT_DIR,
-    "val",
-    "images"
+STD = (
+    0.229,
+    0.224,
+    0.225,
 )
 
-VAL_MASKS_DIR = os.path.join(
-    SPLIT_DIR,
-    "val",
-    "masks"
-)
+# ==========================================================
+# Dataset Settings
+# ==========================================================
 
-TEST_IMAGES_DIR = os.path.join(
-    SPLIT_DIR,
-    "test",
-    "images"
-)
+NUM_CLASSES = 6
 
-TEST_MASKS_DIR = os.path.join(
-    SPLIT_DIR,
-    "test",
-    "masks"
-)
+NUM_SEG_CLASSES = 2
+
+# ==========================================================
+# DataLoader
+# ==========================================================
+
+BATCH_SIZE = 8
+
+NUM_WORKERS = 2
+
+SHUFFLE_TRAIN = True
+
+USE_AUGMENTATION = True
+
+# ==========================================================
+# Training
+# ==========================================================
+
+NUM_EPOCHS = 50
+
+LEARNING_RATE = 1e-4
+
+WEIGHT_DECAY = 1e-5
+
+EARLY_STOPPING_PATIENCE = 10
+
+SEG_LOSS_WEIGHT = 1.0
+
+CLS_LOSS_WEIGHT = 1.0
+
+# ==========================================================
+# Training Augmentations
+# ==========================================================
+
+TRAIN_AUG = {
+
+    "horizontal_flip_prob": 0.5,
+
+    "vertical_flip_prob": 0.5,
+
+    "random_rotate90_prob": 0.5,
+
+    "rotate_limit": 15,
+
+    "blur_limit": 5,
+
+}
+
+VAL_AUG = {}
+
+TEST_AUG = {}
+
+# ==========================================================
+# Debug
+# ==========================================================
+
 if __name__ == "__main__":
 
     print("=" * 60)
@@ -150,8 +203,16 @@ if __name__ == "__main__":
     print("TEST IMG     :", os.path.exists(TEST_IMAGES_DIR))
     print("TEST MASK    :", os.path.exists(TEST_MASKS_DIR))
 
-    print("DEVICE       :", torch.device(
-        "cuda" if torch.cuda.is_available() else "cpu"
-    ))
+    print()
+
+    print("DEVICE       :", DEVICE)
+    print("PIN_MEMORY   :", PIN_MEMORY)
+
+    print()
+
+    print("IMAGE_SIZE   :", IMAGE_SIZE)
+    print("BATCH_SIZE   :", BATCH_SIZE)
+    print("NUM_CLASSES  :", NUM_CLASSES)
+    print("EPOCHS       :", NUM_EPOCHS)
 
     print("=" * 60)
