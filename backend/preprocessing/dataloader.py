@@ -29,7 +29,7 @@ from pathlib import Path
 from PIL import Image
 
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
 
 os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
 
@@ -50,6 +50,7 @@ from config import (
     CSV_PATH,
     SPLIT_DIR,
     NUM_CLASSES,
+    ACTIVE_DATASET_LABELS,
     NUM_WORKERS,
     PIN_MEMORY,
     USE_AUGMENTATION,
@@ -57,6 +58,7 @@ from config import (
     VAL_AUG,
     TEST_AUG,
     SHUFFLE_TRAIN,
+    BALANCE_TRAIN_CLASSES,
     MEAN,
     STD,
 )
@@ -219,9 +221,8 @@ def _build_lookup_dicts(csv_path: str):
     """
     Parse carinthia-s.csv once and return three O(1) lookup dictionaries.
 
-    Labels in the CSV are 1-based (1-6) and are converted to 0-based
-    (0-5) here so they are ready for CrossEntropyLoss without any further
-    transformation downstream.
+    Only the verified labels configured in ACTIVE_DATASET_LABELS are used.
+    They are remapped to contiguous zero-based indices for CrossEntropyLoss.
 
     Parameters
     ----------
@@ -236,6 +237,8 @@ def _build_lookup_dicts(csv_path: str):
         Maps filename stem  (e.g. "0001")     -> zero-indexed int label.
     stem_to_mask : dict
         Maps filename stem  (e.g. "0001")     -> mask path string from CSV.
+    excluded_filenames : set[str]
+        Image files deliberately excluded because their labels are inactive.
     """
     if not os.path.isfile(csv_path):
         raise FileNotFoundError(
@@ -259,17 +262,31 @@ def _build_lookup_dicts(csv_path: str):
             f"Found columns: {list(df.columns)}"
         )
 
-    # Validate label range (1-NUM_CLASSES) before conversion
-    valid_mask = df["label"].between(1, NUM_CLASSES)
+    # The source CSV always uses the original 1-6 label range.
+    valid_mask = df["label"].between(1, 6)
     if not valid_mask.all():
         bad_vals = df.loc[~valid_mask, "label"].unique().tolist()
         raise ValueError(
             f"[DEFECTRA] CSV contains unexpected label values: {bad_vals}. "
-            f"Expected integer labels in [1, {NUM_CLASSES}]."
+            "Expected integer labels in [1, 6]."
         )
 
-    # Convert labels 1-6 -> 0-5 (CrossEntropyLoss convention)
-    df["label_idx"] = df["label"].astype(int) - 1
+    excluded_rows = ~df["label"].isin(ACTIVE_DATASET_LABELS)
+    excluded_count = int(excluded_rows.sum())
+    excluded_filenames = set(
+        df.loc[excluded_rows, "filename"].astype(str).str.strip()
+    )
+    df = df[df["label"].isin(ACTIVE_DATASET_LABELS)].copy()
+    dataset_label_to_idx = {
+        dataset_label: idx
+        for idx, dataset_label in enumerate(ACTIVE_DATASET_LABELS)
+    }
+    df["label_idx"] = df["label"].map(dataset_label_to_idx)
+    if excluded_count:
+        print(
+            f"[DEFECTRA] Excluding {excluded_count} image(s) with unverified "
+            "labels 2 and 5 from classifier training."
+        )
 
     filename_to_label = {}
     stem_to_label = {}
@@ -285,7 +302,7 @@ def _build_lookup_dicts(csv_path: str):
         stem_to_label[stem]      = label
         stem_to_mask[stem]       = mask
 
-    return filename_to_label, stem_to_label, stem_to_mask
+    return filename_to_label, stem_to_label, stem_to_mask, excluded_filenames
 
 
 # ---------------------------------------------------------------------------
@@ -312,6 +329,7 @@ class DefectraDataset(Dataset):
         filename_to_label: dict,
         stem_to_label: dict,
         stem_to_mask: dict,
+        excluded_filenames: set[str],
         transform: A.Compose,
     ) -> None:
         """
@@ -327,6 +345,7 @@ class DefectraDataset(Dataset):
         self.filename_to_label = filename_to_label
         self.stem_to_label     = stem_to_label
         self.stem_to_mask      = stem_to_mask
+        self.excluded_filenames = excluded_filenames
 
         image_dir = Path(SPLIT_DIR) / split / "images"
         mask_dir  = Path(SPLIT_DIR) / split / "masks"
@@ -362,10 +381,14 @@ class DefectraDataset(Dataset):
             elif stem in stem_to_label:
                 label = stem_to_label[stem]
             else:
-                print(
-                    f"[DEFECTRA] WARNING: No CSV label found for '{fname}' "
-                    f"(split='{split}'). Skipping."
-                )
+                if (
+                    fname not in self.excluded_filenames
+                    and stem not in self.excluded_filenames
+                ):
+                    print(
+                        f"[DEFECTRA] WARNING: No CSV label found for '{fname}' "
+                        f"(split='{split}'). Skipping."
+                    )
                 skipped += 1
                 continue
 
@@ -413,7 +436,7 @@ class DefectraDataset(Dataset):
         if skipped:
             print(
                 f"[DEFECTRA] {skipped} sample(s) skipped in split='{split}' "
-                "(missing image / mask / label)."
+                "(inactive label or missing image / mask / label)."
             )
 
         if len(self.samples) == 0:
@@ -499,14 +522,22 @@ def get_dataloaders():
     val_loader   : DataLoader
     test_loader  : DataLoader
     label_to_idx : dict[int, int]
-        Maps original CSV labels (1-6) to zero-indexed labels (0-5).
+        Maps active original CSV labels to zero-indexed model labels.
         Useful for display / inverse-mapping in predict.py.
     """
     # Build lookup dicts once (O(N) CSV scan, O(1) per-sample lookup later)
-    filename_to_label, stem_to_label, stem_to_mask = _build_lookup_dicts(CSV_PATH)
+    (
+        filename_to_label,
+        stem_to_label,
+        stem_to_mask,
+        excluded_filenames,
+    ) = _build_lookup_dicts(CSV_PATH)
 
-    # label_to_idx: original CSV label (1-6) -> model label (0-5)
-    label_to_idx = {orig: orig - 1 for orig in range(1, NUM_CLASSES + 1)}
+    # Active original CSV label -> contiguous model label.
+    label_to_idx = {
+        dataset_label: idx
+        for idx, dataset_label in enumerate(ACTIVE_DATASET_LABELS)
+    }
 
     # Select transforms according to USE_AUGMENTATION flag
     if USE_AUGMENTATION:
@@ -523,6 +554,7 @@ def get_dataloaders():
         filename_to_label=filename_to_label,
         stem_to_label=stem_to_label,
         stem_to_mask=stem_to_mask,
+        excluded_filenames=excluded_filenames,
     )
 
     train_dataset = DefectraDataset(split="train", transform=train_transform, **shared_kwargs)
@@ -537,7 +569,37 @@ def get_dataloaders():
         drop_last=False,
     )
 
-    train_loader = DataLoader(train_dataset, shuffle=SHUFFLE_TRAIN, **loader_kwargs)
+    # Draw rare labels more often during training.  This prevents the
+    # classification head from learning to predict only the majority class.
+    # Validation and test data deliberately keep their original distribution.
+    if BALANCE_TRAIN_CLASSES:
+        train_labels = torch.tensor(
+            [label for _, _, label in train_dataset.samples], dtype=torch.long
+        )
+        class_counts = torch.bincount(train_labels, minlength=NUM_CLASSES).float()
+        missing_classes = torch.nonzero(class_counts == 0, as_tuple=False).flatten()
+        if len(missing_classes):
+            missing = ", ".join(str(index.item() + 1) for index in missing_classes)
+            raise RuntimeError(
+                "Cannot balance training classes because no images were found for "
+                f"dataset label(s): {missing}."
+            )
+
+        sample_weights = class_counts.reciprocal()[train_labels]
+        train_sampler = WeightedRandomSampler(
+            weights=sample_weights,
+            num_samples=len(train_dataset),
+            replacement=True,
+        )
+        train_loader = DataLoader(train_dataset, sampler=train_sampler, **loader_kwargs)
+        print(
+            "[DEFECTRA] Balanced training sampler enabled. "
+            f"Original class counts: {class_counts.to(dtype=torch.int64).tolist()}"
+        )
+    else:
+        train_loader = DataLoader(
+            train_dataset, shuffle=SHUFFLE_TRAIN, **loader_kwargs
+        )
     val_loader   = DataLoader(val_dataset,   shuffle=False,          **loader_kwargs)
     test_loader  = DataLoader(test_dataset,  shuffle=False,          **loader_kwargs)
 

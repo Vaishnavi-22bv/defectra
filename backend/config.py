@@ -154,7 +154,17 @@ STD = (0.229, 0.224, 0.225)
 # Dataset Parameters
 # ==========================================================
 
-NUM_CLASSES = 6
+# Labels 2 and 5 have only 8 and 4 images respectively and do not have
+# verified class names.  Exclude them from the classifier until sufficient,
+# correctly documented data is available.
+CLASS_LABELS = {
+    1: "Particle",
+    3: "Normal (No Defect)",
+    4: "Edge-chip",
+    6: "Contamination",
+}
+ACTIVE_DATASET_LABELS = tuple(CLASS_LABELS)
+NUM_CLASSES = len(ACTIVE_DATASET_LABELS)
 NUM_SEG_CLASSES = 1
 
 # ==========================================================
@@ -182,6 +192,11 @@ WEIGHT_DECAY = 1e-5
 NUM_WORKERS = 2
 
 SHUFFLE_TRAIN = True
+
+# The source dataset is heavily skewed toward one defect class.  Sample
+# training examples inversely to their class frequency so each class has an
+# equal expected number of appearances in an epoch.
+BALANCE_TRAIN_CLASSES = True
 
 SEG_LOSS_WEIGHT = 1.0
 CLS_LOSS_WEIGHT = 1.0
