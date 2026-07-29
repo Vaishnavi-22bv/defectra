@@ -46,6 +46,7 @@ from config import (
     LAST_MODEL_PATH,
     BATCH_SIZE,
     NUM_CLASSES,
+    CLASS_LABELS,
     NUM_SEG_CLASSES,
     PIN_MEMORY,
     NUM_WORKERS,
@@ -403,7 +404,12 @@ def main() -> None:
     print(f"      Train samples : {len(train_loader.dataset)}")
     print(f"      Val   samples : {len(val_loader.dataset)}")
     print(f"      Test  samples : {len(test_loader.dataset)}")
+    model_label_names = {
+        model_label: CLASS_LABELS[dataset_label]
+        for dataset_label, model_label in label_to_idx.items()
+    }
     print(f"      label_to_idx  : {label_to_idx}")
+    print(f"      class_names   : {model_label_names}")
 
     # ── 3. Model ──────────────────────────────────────────────────────────
     print("\n[2/4] Building model ...")

@@ -51,6 +51,7 @@ from config import (
     SPLIT_DIR,
     NUM_CLASSES,
     ACTIVE_DATASET_LABELS,
+    CLASS_LABELS,
     NUM_WORKERS,
     PIN_MEMORY,
     USE_AUGMENTATION,
@@ -634,6 +635,15 @@ if __name__ == "__main__":
     print(f"Mask Shape             : {tuple(masks.shape)}   | dtype={masks.dtype}")
     print(f"Label Shape            : {tuple(labels.shape)}  | dtype={labels.dtype}")
     print(f"Sample Labels          : {labels.tolist()}")
+    model_label_names = {
+        model_label: CLASS_LABELS[dataset_label]
+        for dataset_label, model_label in label_to_idx.items()
+    }
+    print(
+        "Sample Label Names     : "
+        f"{[model_label_names[label.item()] for label in labels]}"
+    )
+    print(f"Class Names            : {model_label_names}")
     print(f"Classification Classes : {NUM_CLASSES}  (0-indexed: 0 to {NUM_CLASSES - 1})")
     print(f"Segmentation Classes   : 2  (background=0, foreground=1)")
     print("=" * 53)
